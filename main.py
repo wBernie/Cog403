@@ -1,4 +1,3 @@
-# This is a sample Python script.
 from datetime import timedelta
 import math
 import random
@@ -13,8 +12,13 @@ class Feats(Atoms):
 class IO(Atoms):
     feat1: Atom; feat2: Atom; feat3: Atom
 
-class pairedAssoc(Family):
+class PairedAssoc(Family):
     io: IO
     val:Feats
 
-.
+class Participant(Agent):
+    d: PairedAssoc
+    input: Input
+    store: ChunkStore
+
+# h, d, p all seperate familys
