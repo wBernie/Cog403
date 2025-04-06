@@ -33,11 +33,6 @@ class divaCost(Supervised):
     def __init__(self, name, s, cost = LeastSquares()):
         super().__init__(name, s, cost)
         self.correct = False
-
-    # def resolve(self, event: Event) -> None:
-    #     updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
-    #     if self.input.affected_by(*updates):
-    #         self.update()
     
     def update(self, dt: timedelta = timedelta(), priority: Priority=Priority.LEARNING) -> None:
         exp_mask = self.mask[0].exp()
@@ -53,20 +48,26 @@ class Choose(Choice):
     c2: Site
     attention: bool
 
-    def __init__(self, name, p, s, *, sd = 1, attention = False):
+    def __init__(self, name, p, s, *, sd = 1, attention = False, mode = None):
         super().__init__(name, p, s, sd=sd)
         self.c1 = Site(self.input.index, {}, 0.0)
         self.c2 = Site(self.input.index, {}, 0.0)
-        self.attention = attention
+        self.mode = mode
     def select(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.CHOICE
     ) -> None:
-        
         c1 = self.c1[0]#.mul(self.input[0])
         c2 = self.c2[0]#.mul(self.input[0])
-        diff1 = c1.sub(self.input[0]).pow(x=2).sum()
-        diff2 = c2.sub(self.input[0]).pow(x=2).sum()
+        k = Site(self.input.index, {}, 2.0)
+        beta = Site(self.input.index, {}, 0.5)
+        e = Site(self.input.index, {}, 3.0)
+        if self.mode:
+            focus = ((c1.sub(c2)).sub(k[0].div(e[0]))).mul(beta[0]).exp()
+        else:
+            focus = Site(self.input.index, {}, 1.0)
+        diff1 = (c1.sub(self.input[0])).mul(focus).pow(x=2).sum()
+        diff2 = (c2.sub(self.input[0])).mul(focus).pow(x=2).sum()
         decision = self.c1 if diff1[''] < diff2[''] else self.c2
         self.system.schedule(
             self.select,
@@ -136,26 +137,21 @@ class Participant(Agent):
     path1: Diva
     choice: Choose
 
-    def __init__(self, name):
+    def __init__(self, name, mode = None):
         p = Family()
         h = Family()
         d = PairedAssoc()
         super().__init__(name, p=p, h=h, d=d)
         self.d = d
         with self:
-            self.choice = Choose("choice", p, (d.io, d.val))
+            self.choice = Choose("choice", p, (d.io, d.val), mode=mode)
             self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.WEIGHTS, lr=0.01)
-            # self.path2 = Diva('path2', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.WEIGHTS)
             self.diva1 = divaCost('path1.learn', s=(d.io, d.val))
             self.diva2 = divaCost('path2.learn', s=(d.io, d.val))
             self.input = Input("input", (d.io, d.val))
         path1, input = self.path1, self.input
-            # path1.ilayer = path2.ilayer
-            # path1.olayer.input = path1.ilayer.main
         input >> path1
-        # input >> path2
         path1.error1, path1.error2 = path1 >> [self.diva1, self.diva2] #path1 output layer.main = error.input
-        # path2.error = path2 >> self.diva2
         self.diva1.target = self.path1.input
         self.diva2.target = self.path1.input
         self.choice.input = input.main
@@ -169,9 +165,6 @@ def init_stimuli(d: PairedAssoc, l: list) -> list[tuple[Chunk,int]]:
          + float(((-1) ** 2 ** int(s[0]))) * io.feat1 ** val[f"_{s[0]}"]
          + float(((-1) ** 2 ** int(s[1]))) * io.feat2 ** val[f"_{s[1]}"]
          + float(((-1) ** 2 ** int(s[2]))) * io.feat3 ** val[f"_{s[2]}"],
-        # + io.feat1 ** val[f"_{s[0]}"]
-        # + io.feat2 ** val[f"_{s[1]}"] 
-        # + io.feat3 ** val[f"_{s[2]}"],
          int(s[3]))
     for s in l]
 
@@ -192,7 +185,7 @@ def trial(p: Participant, correct: int) -> int:
                 p.diva2.update()
     return choice
 
-def simulate(stim: list):
+def simulate(stim: list, mode: str = None):
     epoch = 0
     max_epochs = 50
     trials = 0
@@ -202,7 +195,7 @@ def simulate(stim: list):
     result = np.zeros((30, 50, 8))
     while attempts < max_attempts:
         epoch = 0
-        p = Participant("help1")
+        p = Participant("help1", mode=mode)
         stim1 = init_stimuli(p.d, stim)
         while epoch < max_epochs:
             random.shuffle(stim1)
@@ -231,8 +224,7 @@ stims = [stim1, stim2, stim3, stim4, stim5, stim6]
 
 averages = []
 for i in range(6):
-    result = simulate(stims[i])
-    print(np.shape(result))
+    result = simulate(stims[i], mode='focus')
     epoch_average = 1 - np.mean(result, axis=(0,2))
     averages.append(epoch_average)
 
@@ -240,10 +232,10 @@ x = (range(1, 51))
 for i in range(6):
     plt.figure()
     plt.plot(x, averages[i])
-    plt.title(f'model of type {i+1}')
+    plt.title(f'focus model of type {i+1}')
     plt.xlabel('Epoch')
     plt.ylabel('percent chance at success')
-    plt.savefig(f'graph_{i+1}.png')
+    plt.savefig(f'focus_graph_{i+1}.png')
     plt.close()
 
 # for r in results:
