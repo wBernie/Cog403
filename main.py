@@ -192,52 +192,59 @@ def trial(p: Participant, correct: int) -> int:
                 p.diva2.update()
     return choice
 
-
-# stim1 = init_stimuli(p.d, ['0000', '0010', '0100', '0110', '1001', '1011', '1101', '1111'])
-# stim2 = init_stimuli(p.d, ['0000', '0011', '0100', '0111', '1001', '1010', '1101', '1110'])
-# stim6 = init_stimuli(p.d, ['0000', '0011', '0101', '0110', '1001', '1010', '1100', '1111'])
-# indices = list(range(len(stim1)))
-
-epoch = 0
-max_epochs = 50
-trials = 0
-
-attempts = 0
-max_attempts = 30
-result = np.zeros((30, 50, 8))
-while attempts < max_attempts:
+def simulate(stim: list):
     epoch = 0
-    p = Participant("help1")
-    stim1 = init_stimuli(p.d, ['0000', '0010', '0100', '0110', '1001', '1011', '1101', '1111'])
-    indices = list(range(len(stim1)))
-    while epoch < max_epochs:
-        random.shuffle(stim1)
-        
-        while trials < 8:
-            p.input.send(stim1[trials][0])
-            correct = stim1[trials][1]
-            p.path1.target = correct
-            p.diva1.correct = not correct #0 is correct
-            p.diva2.correct = correct #1 is correct
-            choice = trial(p, correct)
-            result[attempts, epoch, trials] = (choice == correct)
-            trials+= 1
-        trials = 0
-        epoch += 1
-    attempts += 1
+    max_epochs = 50
+    trials = 0
 
+    attempts = 0
+    max_attempts = 30
+    result = np.zeros((30, 50, 8))
+    while attempts < max_attempts:
+        epoch = 0
+        p = Participant("help1")
+        stim1 = init_stimuli(p.d, stim)
+        while epoch < max_epochs:
+            random.shuffle(stim1)
+            while trials < 8:
+                p.input.send(stim1[trials][0])
+                correct = stim1[trials][1]
+                p.path1.target = correct
+                p.diva1.correct = not correct #0 is correct
+                p.diva2.correct = correct #1 is correct
+                choice = trial(p, correct)
+                result[attempts, epoch, trials] = (choice == correct)
+                trials+= 1
+            trials = 0
+            epoch += 1
+        attempts += 1
+    return result.copy()
 
-epoch_average = np.mean(result, axis=(0,2))
+stim1 = ['0000', '0011', '0100', '0111', '1000', '1011', '1100', '1111']
+stim2 = ['0000', '0011', '0100', '0111', '1001', '1010', '1101', '1110']
+stim3 = ['0000', '0011', '0100', '0110', '1000', '1011', '1101', '1111']
+stim4 = ['0000', '0010', '0100', '0111', '1000', '1011', '1101', '1111']
+stim5 = ['0000', '0011', '0100', '0111', '1000', '1011', '1101', '1110']
+stim6 = ['0000', '0011', '0101', '0110', '1001', '1010', '1100', '1111']
+
+stims = [stim1, stim2, stim3, stim4, stim5, stim6]
+
+averages = []
+for i in range(6):
+    result = simulate(stims[i])
+    print(np.shape(result))
+    epoch_average = 1 - np.mean(result, axis=(0,2))
+    averages.append(epoch_average)
+
 x = (range(1, 51))
-# for i in range(6):
-i=0
-plt.figure()
-plt.plot(x, epoch_average)
-plt.title(f'model of type {i+1}')
-plt.xlabel('Epoch')
-plt.ylabel('percent chance at success')
-plt.savefig(f'graph_{i+1}.png')
-plt.close()
+for i in range(6):
+    plt.figure()
+    plt.plot(x, averages[i])
+    plt.title(f'model of type {i+1}')
+    plt.xlabel('Epoch')
+    plt.ylabel('percent chance at success')
+    plt.savefig(f'graph_{i+1}.png')
+    plt.close()
 
 # for r in results:
 #     correct = 0
