@@ -1,22 +1,17 @@
-from datetime import timedelta
-import math
 import random
-from typing import Any, Self, Sequence, Type
 
 import matplotlib.pyplot as plt
 
-from pyClarion import (Activation, Adam, ErrorSignal, Event, Agent, Layer, Optimizer, Priority, Input, Choice,
-    Family, Atoms, Atom, Chunk, Process, Sort, Term,
-    MLP, Train, Tanh, Supervised, Site, LeastSquares)
+from pyClarion import (SGD, Agent, Input, Family, Atoms, Atom, Chunk, Train, Tanh)
+
+from divaClasses import divaCost, Diva, Choose
 
 import numpy as np
 
-type D = Family | Sort | Term
-type V = Family | Sort
-type DV = tuple[D, V]
+
 
 class Feats(Atoms):
-    _0: Atom; _1: Atom
+    _1: Atom
 
 
 class IO(Atoms):
@@ -25,111 +20,6 @@ class IO(Atoms):
 class PairedAssoc(Family):
     io: IO
     val:Feats
-
-class divaCost(Supervised):
-
-    correct: bool
-
-    def __init__(self, name, s, cost = LeastSquares()):
-        super().__init__(name, s, cost)
-        self.correct = False
-    
-    def update(self, dt: timedelta = timedelta(), priority: Priority=Priority.LEARNING) -> None:
-        exp_mask = self.mask[0].exp()
-        if self.correct:
-            main = self.cost.grad(self.input[0], self.target[0], exp_mask)
-        else:
-            main = 0
-        self.system.schedule(self.update, self.input.update(main, grad=True), dt=dt, priority=priority)
-
-class Choose(Choice):
-
-    c1: Site
-    c2: Site
-    attention: bool
-
-    def __init__(self, name, p, s, *, sd = 1, attention = False, mode = None):
-        super().__init__(name, p, s, sd=sd)
-        self.c1 = Site(self.input.index, {}, 0.0)
-        self.c2 = Site(self.input.index, {}, 0.0)
-        self.mode = mode
-    def select(self, 
-        dt: timedelta = timedelta(), 
-        priority=Priority.CHOICE
-    ) -> None:
-        c1 = self.c1[0]#.mul(self.input[0])
-        c2 = self.c2[0]#.mul(self.input[0])
-        k = Site(self.input.index, {}, 2.0)
-        beta = Site(self.input.index, {}, 0.5)
-        e = Site(self.input.index, {}, 3.0)
-        if self.mode:
-            focus = ((c1.sub(c2)).sub(k[0].div(e[0]))).mul(beta[0]).exp()
-        else:
-            focus = Site(self.input.index, {}, 1.0)
-        diff1 = (c1.sub(self.input[0])).mul(focus).pow(x=2).sum()
-        diff2 = (c2.sub(self.input[0])).mul(focus).pow(x=2).sum()
-        decision = self.c1 if diff1[''] < diff2[''] else self.c2
-        self.system.schedule(
-            self.select,
-            self.main.update(decision[0]),
-            dt=dt, priority=priority)
-
-class Diva(MLP):
-
-    hs: list
-    target: int
-
-    def __init__(self, 
-        name: str, 
-        p: Family,
-        h: Family, 
-        s1: V | DV,
-        s2: V | DV | None = None,
-        layers: Sequence[int] = (),
-        optimizer: Type[Optimizer] = Adam, 
-        afunc: Activation | None = None,
-        l: int = 0,
-        train: Train = Train.ALL,
-        init_sd: float = 1e-2,
-        **kwargs: Any
-    ) -> None:
-        s2 = s1 if s2 is None else s2
-        super(MLP, self).__init__(name)
-        self.system.check_root(h)
-        self.layers = []
-        self.optimizer0 = optimizer(f"{name}.optimizer0", p, **kwargs)
-        self.optimizer1 = optimizer(f"{name}.optimizer1", p, **kwargs)
-        lkwargs = {"afunc": afunc, "l": l, "train": train, "init_sd": init_sd}
-        with self.optimizer0:
-            self.hs = []
-            hs = self.hs
-            for i, n in enumerate(layers):
-                hs.append(self._mk_hidden_nodes(h, i, n))
-            self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], **lkwargs)
-            hi = hs[0]
-            layer = self.ilayer
-            lkwargs.pop("afunc")
-            self.olayer0 = layer >> Layer(f"{name}.olayer0", hi, s2, **lkwargs)
-        with self.optimizer1:
-            self.olayer1 = layer >> Layer(f"{name}.olayer1", hi, s2, **lkwargs)
-        self.optimizer1.add(self.ilayer)
-        self.input = Site(self.ilayer.input.index, {}, self.ilayer.input.const)
-    
-    def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
-        if self.input.affected_by(*updates):
-            self.update()
-        if event.source == self.ilayer.backward:
-            if self.target == 0:
-                self.optimizer0.update()
-            else:
-                self.optimizer1.update()
-
-    def __rshift__[T: Process](self: Self, other: T) -> T:
-        if isinstance(other[0], ErrorSignal) and isinstance(other[1], ErrorSignal):
-            return (self.olayer0 >> other[0], self.olayer1 >> other[1])
-        return NotImplemented
-
 
 class Participant(Agent):
     d: PairedAssoc
@@ -145,30 +35,41 @@ class Participant(Agent):
         self.d = d
         with self:
             self.choice = Choose("choice", p, (d.io, d.val), mode=mode)
-            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.WEIGHTS, lr=0.01)
+            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], train=Train.ALL, lr=1)
             self.diva1 = divaCost('path1.learn', s=(d.io, d.val))
             self.diva2 = divaCost('path2.learn', s=(d.io, d.val))
             self.input = Input("input", (d.io, d.val))
         path1, input = self.path1, self.input
         input >> path1
         path1.error1, path1.error2 = path1 >> [self.diva1, self.diva2] #path1 output layer.main = error.input
-        self.diva1.target = self.path1.input
-        self.diva2.target = self.path1.input
+        self.diva1.target = input.main
+        self.diva2.target = input.main
         self.choice.input = input.main
+        self.diva1.main = path1.olayer0.main
+        self.diva2.main = path1.olayer1.main
         self.choice.c1 = self.path1.olayer0.main
         self.choice.c2 = self.path1.olayer1.main
 
 def init_stimuli(d: PairedAssoc, l: list) -> list[tuple[Chunk,int]]:
+    """
+    Creates chunks from the list
+    """
     io, val = d.io, d.val
     return [
         (s ^
-         + float(((-1) ** 2 ** int(s[0]))) * io.feat1 ** val[f"_{s[0]}"]
-         + float(((-1) ** 2 ** int(s[1]))) * io.feat2 ** val[f"_{s[1]}"]
-         + float(((-1) ** 2 ** int(s[2]))) * io.feat3 ** val[f"_{s[2]}"],
+        #  + float(((-1) ** 2 ** int(s[0]))) * io.feat1 ** val[f"_{s[0]}"]
+        #  + float(((-1) ** 2 ** int(s[1]))) * io.feat2 ** val[f"_{s[1]}"]
+        #  + float(((-1) ** 2 ** int(s[2]))) * io.feat3 ** val[f"_{s[2]}"],
+         + float(((-1) ** 2 ** int(s[0]))) * io.feat1 ** val._1
+         + float(((-1) ** 2 ** int(s[1]))) * io.feat2 ** val._1
+         + float(((-1) ** 2 ** int(s[2]))) * io.feat3 ** val._1,
          int(s[3]))
     for s in l]
 
 def trial(p: Participant, correct: int) -> int:
+    """
+    Starts one trial
+    """
     done = 0
     while p.system.queue:
         event = p.system.advance()
@@ -186,6 +87,9 @@ def trial(p: Participant, correct: int) -> int:
     return choice
 
 def simulate(stim: list, mode: str = None):
+    """
+    runs 30 random simulations with the same mode (focus or no focus)
+    """
     epoch = 0
     max_epochs = 50
     trials = 0
@@ -213,6 +117,8 @@ def simulate(stim: list, mode: str = None):
         attempts += 1
     return result.copy()
 
+
+# Begin simulations
 stim1 = ['0000', '0011', '0100', '0111', '1000', '1011', '1100', '1111']
 stim2 = ['0000', '0011', '0100', '0111', '1001', '1010', '1101', '1110']
 stim3 = ['0000', '0011', '0100', '0110', '1000', '1011', '1101', '1111']
@@ -224,28 +130,55 @@ stims = [stim1, stim2, stim3, stim4, stim5, stim6]
 
 averages = []
 for i in range(6):
-    result = simulate(stims[i], mode='focus')
+    result = simulate(stims[i])
     epoch_average = 1 - np.mean(result, axis=(0,2))
     averages.append(epoch_average)
 
+
+# Plot results
 x = (range(1, 51))
 for i in range(6):
     plt.figure()
     plt.plot(x, averages[i])
+    plt.title(f'model of type {i+1}')
+    plt.xlabel('Epoch')
+    plt.ylabel('percent chance at success')
+    plt.savefig(f'graphs/graph_{i+1}.png')
+    plt.close()
+
+plt.figure()
+for i in range(6):
+    plt.plot(x, averages[i], label=f"type {i+1}")
+plt.title("model for each type")
+plt.xlabel('Epoch')
+plt.ylabel('percent chance at success')
+plt.legend()
+plt.savefig("graphs/graph_all.png")
+plt.close()
+
+
+averages_focus = []
+for i in range(6):
+    result = simulate(stims[i], mode='focus')
+    epoch_average = 1 - np.mean(result, axis=(0,2))
+    averages_focus.append(epoch_average)
+
+x = (range(1, 51))
+for i in range(6):
+    plt.figure()
+    plt.plot(x, averages_focus[i])
     plt.title(f'focus model of type {i+1}')
     plt.xlabel('Epoch')
     plt.ylabel('percent chance at success')
-    plt.savefig(f'focus_graph_{i+1}.png')
+    plt.savefig(f'focus_graphs/focus_graph_{i+1}.png')
     plt.close()
 
-# for r in results:
-#     correct = 0
-#     for l in r:
-#         if l == True:
-#             correct += 1
-#     print(correct/8)
-# correct = 0
-
-
-
-# h, d, p all seperate familys
+plt.figure()
+for i in range(6):
+    plt.plot(x, averages_focus[i], label=f"type {i+1}")
+plt.title("focus model for each type")
+plt.xlabel('Epoch')
+plt.ylabel('percent chance at success')
+plt.legend()
+plt.savefig("focus_graphs/focus_graph_all.png")
+plt.close()
