@@ -1,6 +1,5 @@
-Clarion integrated DIVA model
+## Clarion integrated DIVA model
 ​
-## Description about the project
 The DIVA model integrated into Clarion using the pyClarion library. Tested on the 6 elemental categories created from inputs of three binary features.
 ​
 ## Instructions
