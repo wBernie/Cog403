@@ -35,7 +35,7 @@ class Participant(Agent):
         self.d = d
         with self:
             self.choice = Choose("choice", p, (d.io, d.val), mode=mode)
-            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.ALL, lr=1)
+            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.ALL, lr=0.1, sd=0.5, init_sd=0.5)
             self.diva1 = divaCost('path1.learn', s=(d.io, d.val))
             self.diva2 = divaCost('path2.learn', s=(d.io, d.val))
             self.input = Input("input", (d.io, d.val))
@@ -127,7 +127,6 @@ stim5 = ['0000', '0011', '0100', '0111', '1000', '1011', '1101', '1110']
 stim6 = ['0000', '0011', '0101', '0110', '1001', '1010', '1100', '1111']
 
 stims = [stim1, stim2, stim3, stim4, stim5, stim6]
-
 averages = []
 for i in range(6):
     result = simulate(stims[i])
@@ -140,18 +139,18 @@ x = (range(1, 51))
 for i in range(6):
     plt.figure()
     plt.plot(x, averages[i])
-    plt.title(f'model of type {i+1}')
+    plt.title(f'Model of Type {i+1}')
     plt.xlabel('Epoch')
-    plt.ylabel('percent chance at success')
+    plt.ylabel('Mean Classification Error Rate')
     plt.savefig(f'graphs/graph_{i+1}.png')
     plt.close()
 
 plt.figure()
 for i in range(6):
     plt.plot(x, averages[i], label=f"type {i+1}")
-plt.title("model for each type")
+plt.title("Model for each Type")
 plt.xlabel('Epoch')
-plt.ylabel('percent chance at success')
+plt.ylabel('Mean Classification Error Rate')
 plt.legend()
 plt.savefig("graphs/graph_all.png")
 plt.close()
@@ -167,18 +166,18 @@ x = (range(1, 51))
 for i in range(6):
     plt.figure()
     plt.plot(x, averages_focus[i])
-    plt.title(f'focus model of type {i+1}')
+    plt.title(f'Focus Model of Type {i+1}')
     plt.xlabel('Epoch')
-    plt.ylabel('percent chance at success')
+    plt.ylabel('Mean Classification Error Rate')
     plt.savefig(f'focus_graphs/focus_graph_{i+1}.png')
     plt.close()
 
 plt.figure()
 for i in range(6):
     plt.plot(x, averages_focus[i], label=f"type {i+1}")
-plt.title("focus model for each type")
+plt.title("Focus Model for each Type")
 plt.xlabel('Epoch')
-plt.ylabel('percent chance at success')
+plt.ylabel('Mean Classification Error Rate')
 plt.legend()
 plt.savefig("focus_graphs/focus_graph_all.png")
 plt.close()

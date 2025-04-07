@@ -1,8 +1,9 @@
 from datetime import timedelta
 from typing import Any, Self, Sequence, Type
-from pyClarion import (Supervised, LeastSquares, Priority, Site, Choice, MLP, Family, Train, Optimizer, Adam,
+from pyClarion import (NumDict, Supervised, LeastSquares, Priority, Site, Choice, MLP, Family, Tanh, Train, Optimizer, Adam,
                        Activation, Layer, Event, Process, ErrorSignal, Sort, Term)
 import sys
+import random
 type D = Family | Sort | Term
 type V = Family | Sort
 type DV = tuple[D, V]
@@ -20,11 +21,8 @@ class divaCost(Supervised):
     
     def update(self, dt: timedelta = timedelta(), priority: Priority=Priority.LEARNING) -> None:
         exp_mask = self.mask[0].exp()
-        if self.correct:
-            # input = self.input[0].mul(self.target[0].abs())
-            main = self.cost.grad(self.input[0], self.target[0], exp_mask)
-        else:
-            main = 0
+        # input = self.input[0].mul(self.target[0].abs())
+        main = self.cost.grad(self.input[0], self.target[0], exp_mask)
         self.system.schedule(self.update, self.main.update(main, grad=True), dt=dt, priority=priority)
 
 class Choose(Choice):
@@ -50,12 +48,14 @@ class Choose(Choice):
             k = Site(self.input.index, {}, max(c1.max()[''], c2.max()['']) - min(c1.min()[''], c2.min()['']))
             beta = Site(self.input.index, {}, 2)
             focus = ((c1.sub(c2)).abs().sub(k[0])).mul(beta[0]).exp()
-            diff1 = (c1.sub(self.input[0])).mul(focus).pow(x=2).sum()
-            diff2 = (c2.sub(self.input[0])).mul(focus).pow(x=2).sum()
+            diff1 = (c1.sub(self.input[0])).mul(focus).pow(x=2).sum()['']
+            diff2 = (c2.sub(self.input[0])).mul(focus).pow(x=2).sum()['']
         else:
-            diff1 = (c1.sub(self.input[0])).pow(x=2).sum()
-            diff2 = (c2.sub(self.input[0])).pow(x=2).sum()
-        decision = self.c1 if diff1[''] < diff2[''] else self.c2
+            diff1 = (c1.sub(self.input[0])).pow(x=2).sum()['']
+            diff2 = (c2.sub(self.input[0])).pow(x=2).sum()['']
+        prob1 = (1/diff1)/((1/diff1) + (1/diff2))
+        
+        decision = self.c1 if random.random() < prob1 else self.c2
         self.system.schedule(
             self.select,
             self.main.update(decision[0]),
@@ -100,9 +100,9 @@ class Diva(MLP):
             layer = self.ilayer
             lkwargs.pop("afunc")
             self.olayer0 = layer >> Layer(f"{name}.olayer0", hi, s2, **lkwargs)
+        self.optimizer1.add(self.ilayer)
         with self.optimizer1:
             self.olayer1 = layer >> Layer(f"{name}.olayer1", hi, s2, **lkwargs)
-        self.optimizer1.add(self.ilayer)
         self.input = Site(self.ilayer.input.index, {}, self.ilayer.input.const)
     
     def resolve(self, event: Event) -> None:
