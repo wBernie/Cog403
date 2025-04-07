@@ -1,6 +1,11 @@
 ## Clarion integrated DIVA model
 ​
-The DIVA model integrated into Clarion using the pyClarion library. Tested on the 6 elemental categories created from inputs of three binary features.
+The DIVA model integrated into Clarion using the pyClarion library. Tested on the 6 elemental categories created from inputs of three binary features represented as values of ±1 for each dimension. Parameters are set to the following:
+* standard deviation: 0.5
+* learning rate: 0.1
+* degree of focus ($\beta$): 10
+* activation function: Tanh
+* optimization function: Adam
 ​
  ## Development requirements
   * Programming Languages: Python
