@@ -46,7 +46,7 @@ class Choose(Choice):
         c2 = self.c2[0]#.mul(self.input[0].abs())
         if self.mode:
             k = Site(self.input.index, {}, max(c1.max()[''], c2.max()['']) - min(c1.min()[''], c2.min()['']))
-            beta = Site(self.input.index, {}, 2)
+            beta = Site(self.input.index, {}, 10.0)
             focus = ((c1.sub(c2)).abs().sub(k[0])).mul(beta[0]).exp()
             diff1 = (c1.sub(self.input[0])).mul(focus).pow(x=2).sum()['']
             diff2 = (c2.sub(self.input[0])).mul(focus).pow(x=2).sum()['']
