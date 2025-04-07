@@ -35,7 +35,7 @@ class Participant(Agent):
         self.d = d
         with self:
             self.choice = Choose("choice", p, (d.io, d.val), mode=mode)
-            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], train=Train.ALL, lr=1)
+            self.path1 = Diva('path1', p=p, h=h, s1=(d.io, d.val), layers=[2], afunc=Tanh(), train=Train.ALL, lr=1)
             self.diva1 = divaCost('path1.learn', s=(d.io, d.val))
             self.diva2 = divaCost('path2.learn', s=(d.io, d.val))
             self.input = Input("input", (d.io, d.val))
