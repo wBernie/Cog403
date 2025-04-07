@@ -133,13 +133,13 @@ for i in range(6):
     epoch_average = 1 - np.mean(result, axis=(0,2))
     averages.append(epoch_average)
 
-
+numerals = ['I', 'II', 'III', 'IV', 'V', 'VI']
 # Plot results
 x = (range(1, 51))
 for i in range(6):
     plt.figure()
     plt.plot(x, averages[i])
-    plt.title(f'Model of Type {i+1}')
+    plt.title(f'Model of Type {numerals[1]}')
     plt.xlabel('Epoch')
     plt.ylabel('Mean Classification Error Rate')
     plt.savefig(f'graphs/graph_{i+1}.png')
@@ -147,7 +147,7 @@ for i in range(6):
 
 plt.figure()
 for i in range(6):
-    plt.plot(x, averages[i], label=f"type {i+1}")
+    plt.plot(x, averages[i], label=f"type {numerals[1]}")
 plt.title("Model for each Type")
 plt.xlabel('Epoch')
 plt.ylabel('Mean Classification Error Rate')
@@ -169,12 +169,12 @@ for i in range(6):
     plt.title(f'Focus Model of Type {i+1}')
     plt.xlabel('Epoch')
     plt.ylabel('Mean Classification Error Rate')
-    plt.savefig(f'focus_graphs/focus_graph_{i+1}.png')
+    plt.savefig(f'focus_graphs/focus_graph_{numerals[1]}.png')
     plt.close()
 
 plt.figure()
 for i in range(6):
-    plt.plot(x, averages_focus[i], label=f"type {i+1}")
+    plt.plot(x, averages_focus[i], label=f"type {numerals[1]}")
 plt.title("Focus Model for each Type")
 plt.xlabel('Epoch')
 plt.ylabel('Mean Classification Error Rate')
