@@ -182,3 +182,6 @@ plt.ylabel('percent chance at success')
 plt.legend()
 plt.savefig("focus_graphs/focus_graph_all.png")
 plt.close()
+
+np.savetxt("averages.cvc", averages, delimiter=',')
+np.savetxt("focus_averages.cvc", averages_focus, delimiter=',')
